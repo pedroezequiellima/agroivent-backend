@@ -1,0 +1,388 @@
+﻿Aqui está o roteiro técnico detalhado, comando por comando.
+
+Aqui está o mapa de como o seu projeto Backend_AgroIvent deve ser organizado:
+
+📂 Estrutura de Pastas (Arquitetura AgroIvent)
+Plaintext
+src/
+├── auth/                         # Módulo 1: Autenticação (JWT/Bcrypt)
+│   ├── dto/                      # Validação de login/registro
+│   ├── guards/                   # Proteção de rotas (AuthGuard)
+│   └── auth.service.ts           # Lógica de login e geração de Token
+├── perfis/                       # Módulo 1: Dados do Engenheiro (CREA/ART)
+├── projetos/                     # Módulo 2 e 8: Gestão e Configurações
+│   ├── dto/                      # Regras de criação (Estado, Bioma, Área)
+│   └── projetos.service.ts       # Lógica de criação e status do projeto
+├── inventario/                   # Módulo 3 e 4: Árvores e Estatísticas
+│   ├── inventario.controller.ts  # Upload de planilhas
+│   └── inventario.service.ts     # Chamada do Python e salvamento de dados
+├── common/                       # Filtros de erro e middlewares globais
+├── database/                     # Configuração do TypeORM / Supabase
+└── engine/                       # <--- ONDE O PYTHON MORA
+    ├── scripts/
+    │   ├── main.py               # Script principal (Orquestrador)
+    │   ├── processor.py          # Cálculos (Volume/Estatística)
+    │   └── requirements.txt      # Bibliotecas Python (Pandas, SciPy)
+    └── python.service.ts         # Service NestJS que executa o script
+
+
+📝 O que vai em cada arquivo chave:
+1. src/database/database.config.ts
+Aqui você vai configurar a conexão com o Supabase.
+Importante: Como mudamos o banco, as suas entities agora devem refletir as tabelas projetos, arvores e perfis.
+Dica Sênior: Use variáveis de ambiente (.env) para a URL do banco. Nunca deixe a senha exposta no código.
+2. src/engine/python.service.ts
+Este é o arquivo mais importante para a nossa integração. Ele usará o child_process do Node.js para rodar o Python.
+Função: Ele recebe o caminho do arquivo Excel e o id_projeto, "spawna" o processo Python e fica ouvindo o resultado.
+3. src/inventario/inventario.service.ts
+Este service fará a "ponte":
+Recebe o arquivo do Controller.
+Salva no Supabase Storage.
+Chama o PythonService.
+Quando o Python termina, este service atualiza o status do projeto para FINALIZADO.
+4. src/engine/scripts/main.py
+O script Python será o "trabalhador pesado".
+Ele vai usar a biblioteca SQLAlchemy para ler as regras de cálculo (Módulo 8) e as regras do estado (Módulo 6) direto do banco antes de começar a processar a planilha.
+
+⚙️ Mudança na Configuração do Banco (TypeORM)
+No seu app.module.ts, a configuração deve ser ajustada para não tentar criar tabelas automaticamente (já que o nosso SQL Mestre é quem manda).
+TypeScript
+// Exemplo de configuração racional
+TypeOrmModule.forRoot({
+  type: 'postgres',
+  url: process.env.DATABASE_URL,
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: false, // DESATIVADO: Usaremos o SQL que planejamos
+  logging: true,      // Ative para ver as queries no terminal
+})
+
+
+🚀 Por que essa estrutura é segura?
+Isolamento: O código Python fica "preso" na pasta engine. Se você precisar trocar o script ou atualizar uma biblioteca de cálculo, não quebra o resto do site.
+Rastreabilidade: Cada módulo cuida de uma parte da lei. O módulo auth cuida da segurança, o projetos cuida do enquadramento na CPRH.
+Performance: O NestJS lida com as requisições web rápidas, e o Python lida com o processamento pesado em segundo plano.
+
+
+
+Arquivo
+Função de Segurança
+main.ts
+Habilita CORS e Validação Global de Pipes.
+auth.service.ts
+Gera o Token JWT assinado e criptografa a senha com Bcrypt.
+jwt.strategy.ts
+Valida se o Token que veio do frontend é verdadeiro.
+*.controller.ts
+Usa o @UseGuards para proteger os caminhos (endpoints).
+*.service.ts
+Garante que o usuario_id sempre filtre os dados no Supabase.
+
+
+
+
+Criação do Projeto NestJS
+Abra o seu terminal na pasta onde o projeto vai morar e execute:
+Bash
+# Instala o CLI do NestJS (caso não tenha)
+npm install -g @nestjs/cli
+
+
+# Cria o novo projeto (use o nome padrão agroivent-backend)
+nest new agroivent-backend
+
+
+Selecione npm como gerenciador de pacotes.
+________________
+
+
+3. Instalação das Dependências de "Guerra"
+Entre na pasta do projeto e instale os pacotes que vão garantir a segurança e a conexão:
+Bash
+cd agroivent-backend
+
+
+# Banco de Dados (TypeORM + Postgres)
+npm install @nestjs/typeorm typeorm pg
+
+
+# Segurança (JWT + Passport + Criptografia)
+npm install @nestjs/jwt @nestjs/passport passport passport-jwt bcrypt class-validator class-transformer
+
+
+# Tipagens de Desenvolvimento
+npm install --save-dev @types/bcrypt @types/passport-jwt
+
+
+________________
+
+
+4. Organização da Estrutura de Pastas
+O NestJS cria uma estrutura básica, mas nós vamos criar as pastas para os 8 Módulos do AgroIvent usando o gerador automático. Execute um por um no terminal:
+Bash
+# Módulo de Autenticação e Perfis (Engenheiro)
+nest generate module auth
+nest generate module perfis
+
+
+# Módulo de Gestão de Inventários (Regras Estaduais)
+nest generate module projetos
+
+
+# Módulo de Dados de Campo (Cálculos e Árvores)
+nest generate module inventario
+
+
+# Módulo do Motor Python (Onde a mágica acontece)
+nest generate module engine
+
+
+Após rodar esses comandos, sua pasta src/ terá subpastas para cada funcionalidade, mantendo o código organizado e fácil de dar manutenção.
+________________
+
+
+5. Configuração do Ambiente (.env)
+Na raiz do projeto (mesma pasta do package.json), crie um arquivo chamado .env. Dentro dele, coloque a conexão com o seu Supabase:
+Snippet de código
+DATABASE_URL=postgresql://postgres:[SUA_SENHA]@db.[SEU_ID_SUPABASE].supabase.co:5432/postgres
+JWT_SECRET=UmaSenhaMuitoForteEPrivadaDoAgroIvent2026
+
+
+Substitua os valores entre colchetes pelos dados que aparecem em "Project Settings > Database" no painel do Supabase.
+________________
+
+
+6. Configuração do Coração (app.module.ts)
+Abra o arquivo src/app.module.ts. Vamos configurar o NestJS para ler o .env e conectar ao banco sem tentar criar tabelas sozinho (usando synchronize: false).
+TypeScript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(), // Carrega o .env
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      url: process.env.DATABASE_URL,
+      autoLoadEntities: true,
+      synchronize: false, // Regra de Ouro: O SQL Mestre é quem manda
+    }),
+    // Os outros módulos aparecerão aqui automaticamente...
+  ],
+})
+export class AppModule {}
+
+
+________________
+
+1. Banco de Dados: Tabelas criadas no padrão da CPRH/INEMA.
+2. Infraestrutura: Projeto NestJS instalado e limpo.
+3. Segurança: Bibliotecas de criptografia e tokens prontas.
+4. Organização: Pastas separadas para não misturar lógica de login com lógica de cálculo florestal.
+
+ Planejamento de Dados: O Novo Coração do AgroIvent
+
+
+Vamos montar agora o Blueprint (Mapa de Engenharia) do AgroIvent. Como estamos mirando um sistema que atenda CPRH (PE), INEMA (BA) e outros órgãos do Nordeste, o banco de dados não pode ser apenas uma lista; ele precisa ser um Motor de Conformidade Ambiental.
+Aqui está o detalhamento técnico de cada tabela que vamos criar no Supabase, dividida por módulos de responsabilidade.
+
+🛠️ Módulo 1: Identidade e Responsabilidade Técnica
+Este módulo garante a segurança (JWT/Bcrypt) e a validade jurídica (Engenheiro Responsável).
+1. Tabela perfis (Profiles)
+O que é: Extensão do usuário do Supabase Auth.
+Colunas:
+id (UUID): Chave primária ligada ao Auth.
+nome_completo (Text): Nome que sai no cabeçalho do PDF.
+email (Text): Para contato e login.
+registro_profissional (Text): O número do CREA ou CRBio.
+assinatura_url (Text): Link para a imagem da assinatura digitalizada (opcional).
+Por que está ali: Para que todo relatório gerado tenha o "carimbo" do profissional habilitado, exigência nº 1 da CPRH.
+
+📂 Módulo 2: Gestão de Projetos (O Cérebro)
+Aqui é onde o sistema decide se vai aplicar a regra de Pernambuco, Bahia ou Ceará.
+2. Tabela projetos
+Colunas:
+id (UUID): Identificador único do inventário.
+usuario_id (FK): Quem é o dono desse projeto.
+nome_projeto (Text): Ex: "Fazenda Boa Vista - Talhão 02".
+estado (Enum): 'PE', 'BA', 'CE', 'MA', 'PI'... (Define a legislação).
+bioma (Enum): 'CAATINGA', 'MATA_ATLANTICA', 'CERRADO'. (Define o fator de forma).
+tipo_requerimento (Enum): 'RCF', 'SUPRESSAO_PLENA', 'MANEJO'. (Define o template do PDF).
+area_total_ha (Decimal): Crucial para saber se o sistema exige erro de 20% ou se é RCF.
+numero_art (Text): Anotação de Responsabilidade Técnica deste projeto específico.
+arquivo_bruto_url (Text): Link do .xlsx original (o "Backup de Segurança").
+Por que está ali: Sem essa tabela, o sistema seria "burro". Ela contextualiza os cálculos que o Python vai fazer depois.
+
+🌲 Módulo 3: Inventário e Dendrometria
+Aqui moram os dados de campo. Cada linha é uma árvore ou uma parcela.
+3. Tabela arvores (ou inventario_dados)
+Colunas:
+id (UUID): Identificador da árvore.
+projeto_id (FK): A qual projeto essa árvore pertence.
+nome_comum (Text): O que o mateiro digitou (Catingueira).
+nome_cientifico (Text): O que o Python preencheu (Cenostigma pyramidale).
+cap / dap (Decimal): Medidas de circunferência ou diâmetro.
+altura_comercial (Decimal): Altura aproveitável para madeira.
+qualidade_fuste (Int): 1, 2, 3 ou 4. (Define se pode ser cortada).
+volume_m3 (Decimal): O Volume Real calculado.
+volume_estereo_st (Decimal): O Volume Empilhado (essencial para lenha em PE).
+coordenada_x / coordenada_y (Decimal): Para gerar o mapa de arraste.
+situacao (Enum): 'EXPLORAR', 'REMANESCENTE', 'MATRIZ', 'PROTEGIDA'.
+Por que está ali: É o coração do processamento. Aqui o Python salva o resultado linha por linha para o Dashboard exibir.
+
+📈 Módulo 4: Estatística e Auditoria
+Onde guardamos a "prova real" para o fiscal da CPRH não multar o engenheiro.
+4. Tabela estatisticas_projeto
+Colunas:
+projeto_id (FK/Unique): Um resumo estatístico por projeto.
+erro_amostragem (Decimal): O valor que deve ser < 20%.
+probabilidade (Decimal): Fixado em 0.90 (90%).
+intensidade_amostral (Int): Número de parcelas analisadas.
+media_volume_ha (Decimal): O rendimento por hectare.
+variancia / desvio_padrao (Decimal): Cálculos internos do Python.
+Por que está ali: Para gerar a "Memória de Cálculo" obrigatória no Relatório de Inventário Pleno (> 20ha).
+
+📜 Módulo 5: Histórico e Resultados
+Onde o cliente acessa o que já foi feito.
+5. Tabela relatorios_gerados
+Colunas:
+id (UUID).
+projeto_id (FK).
+tipo_relatorio (Text): Ex: "RA_Final", "RCF_Simplificado".
+pdf_url (Text): Link do documento final pronto.
+data_geracao (Timestamp).
+Por que está ali: Para o engenheiro ter um histórico e não precisar reprocessar tudo se quiser baixar o PDF de novo depois de um mês.
+
+🚀 O que muda no seu NestJS para suportar isso?
+DTOs Dinâmicos: O seu backend terá que validar se, ao criar um projeto em PE com > 20ha, o campo area_total_ha foi preenchido corretamente.
+Relacionamento User -> Project -> Trees: O usuário só pode ver as árvores dos projetos que ele criou. Isso garante a privacidade dos dados das fazendas.
+ Módulo 6: O "Juiz" (Regras e Parâmetros Estaduais)
+Estas tabelas servem de consulta para o seu script Python e para as validações do NestJS.
+6. Tabela regras_ambientais_estados
+O que é: Onde moram as leis de PE, BA, CE, etc.
+Colunas:
+id, estado (PE, BA...)
+dmc_padrao (Decimal): Ex: 50.0.
+erro_amostragem_max (Decimal): Ex: 20.0.
+probabilidade_min (Decimal): Ex: 90.0.
+limite_area_simplificado (Decimal): Ex: 20.0 (O corte para o RCF).
+Por que está ali: O sistema consulta aqui antes de processar. Se o projeto é em PE e tem 25ha, o sistema já sabe que o erro máximo permitido é 20%.
+7. Tabela especies_referencia (O Dicionário)
+O que é: O banco de dados botânico do AgroIvent.
+Colunas:
+id, nome_comum, nome_cientifico.
+grupo_sucessional (Pioneira, Secundária, Clímax).
+ameaçada (Boolean): Se está na lista de extinção.
+fator_forma_padrao (Decimal): Caso o engenheiro não tenha um, o sistema sugere o da espécie.
+Por que está ali: Para o Python não precisar ir na internet toda vez. Ele limpa a planilha cruzando com esta tabela.
+8. Tabela configuracoes_calculo_projeto
+O que é: As escolhas técnicas do engenheiro para aquele projeto.
+Colunas:
+projeto_id (FK).
+metodo_volume (Enum): 'GEOMETRICO', 'SCHUMACHER', 'SMALIAN'.
+fator_forma_usado (Decimal): Ex: 0.7.
+constante_pi (Decimal): 3.14159...
+Por que está ali: O relatório final precisa dizer: "O volume foi calculado usando o Fator de Forma 0.7". Sem salvar isso, o relatório perde a Memória de Cálculo.
+
+
+Codigo do supabase: 
+-- 1. EXTENSÕES PARA INTELIGÊNCIA GEOGRÁFICA (GIS)
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- 2. ENUMS (PADRONIZAÇÃO TOTAL)
+CREATE TYPE estado_nordeste AS ENUM ('PE', 'BA', 'CE', 'MA', 'PI', 'RN', 'PB', 'AL', 'SE');
+CREATE TYPE bioma_tipo AS ENUM ('CAATINGA', 'MATA_ATLANTICA', 'CERRADO', 'TRANSICAO');
+CREATE TYPE requerimento_tipo AS ENUM ('RCF', 'SUPRESSAO_PLENA', 'MANEJO_SUSTENTAVEL');
+CREATE TYPE situacao_arvore AS ENUM ('EXPLORAR', 'REMANESCENTE', 'MATRIZ', 'PROTEGIDA');
+CREATE TYPE status_projeto AS ENUM ('AGUARDANDO_PROCESSAMENTO', 'PROCESSANDO', 'FINALIZADO', 'ERRO');
+CREATE TYPE metodo_volume_tipo AS ENUM ('GEOMETRICO', 'SCHUMACHER', 'SMALIAN');
+
+-- 3. TABELA DE PERFIS COM AUDITORIA
+CREATE TABLE perfis (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  nome_completo TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  registro_profissional TEXT NOT NULL, 
+  assinatura_url TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. TABELA DE ESPÉCIES (NORMALIZAÇÃO)
+CREATE TABLE especies (
+  id SERIAL PRIMARY KEY,
+  nome_comum TEXT NOT NULL,
+  nome_cientifico TEXT UNIQUE NOT NULL,
+  familia TEXT,
+  grupo_sucessional TEXT,
+  ameaçada BOOLEAN DEFAULT FALSE
+);
+
+-- 5. PROJETOS (MULTI-TENANT E VERSIONAMENTO)
+CREATE TABLE projetos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  usuario_id UUID REFERENCES perfis(id) ON DELETE CASCADE NOT NULL,
+  nome_projeto TEXT NOT NULL,
+  estado estado_nordeste NOT NULL,
+  bioma bioma_tipo NOT NULL,
+  tipo_requerimento requerimento_tipo NOT NULL,
+  area_total_ha DECIMAL(10,2) NOT NULL CHECK (area_total_ha > 0),
+  numero_art TEXT NOT NULL,
+  versao INTEGER DEFAULT 1,
+  status status_projeto DEFAULT 'AGUARDANDO_PROCESSAMENTO',
+  arquivo_bruto_url TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. CONFIGURAÇÕES DE CÁLCULO
+CREATE TABLE configuracoes_calculo_projeto (
+  projeto_id UUID REFERENCES projetos(id) ON DELETE CASCADE PRIMARY KEY,
+  metodo_volume metodo_volume_tipo DEFAULT 'GEOMETRICO',
+  fator_forma_usado DECIMAL(4,2) DEFAULT 0.7,
+  casca_inclusa BOOLEAN DEFAULT TRUE,
+  conversao_estereo_st DECIMAL(4,2) DEFAULT 1.5
+);
+
+-- 7. INVENTÁRIO (DADOS TÉCNICOS COM GEOGRAPHY)
+CREATE TABLE arvores (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  projeto_id UUID REFERENCES projetos(id) ON DELETE CASCADE NOT NULL,
+  especie_id INTEGER REFERENCES especies(id), -- FK para normalização
+  cap DECIMAL(10,2) NOT NULL,
+  dap DECIMAL(10,2) GENERATED ALWAYS AS (cap / 3.14159265) STORED, -- Cálculo automático no DB
+  altura_comercial DECIMAL(10,2) NOT NULL,
+  volume_m3 DECIMAL(10,4),
+  volume_estereo_st DECIMAL(10,4),
+  qualidade_fuste INTEGER CHECK (qualidade_fuste BETWEEN 1 AND 4),
+  localizacao GEOGRAPHY(POINT, 4326), -- Nível Pro GIS
+  classe_diametrica TEXT,
+  situacao situacao_arvore DEFAULT 'REMANESCENTE'
+);
+
+-- 8. ESTATÍSTICA COM CHECK DE SEGURANÇA
+CREATE TABLE estatisticas_projeto (
+  projeto_id UUID REFERENCES projetos(id) ON DELETE CASCADE PRIMARY KEY,
+  erro_amostragem DECIMAL(10,2) CHECK (erro_amostragem >= 0),
+  probabilidade DECIMAL(4,2) DEFAULT 0.90,
+  intensidade_amostral INTEGER NOT NULL,
+  media_volume_ha DECIMAL(10,4),
+  variancia DECIMAL(15,8),
+  desvio_padrao DECIMAL(15,8)
+);
+
+-- 9. LOGS DE PROCESSAMENTO (HISTÓRICO DE EXECUÇÃO PYTHON)
+CREATE TABLE logs_processamento (
+  id SERIAL PRIMARY KEY,
+  projeto_id UUID REFERENCES projetos(id) ON DELETE CASCADE,
+  status status_projeto,
+  mensagem TEXT,
+  criado_em TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 10. ÍNDICES DE PERFORMANCE (VELOCIDADE DE BUSCA)
+CREATE INDEX idx_arvores_projeto ON arvores(projeto_id);
+CREATE INDEX idx_projetos_usuario ON projetos(usuario_id);
+CREATE INDEX idx_especies_nome ON especies(nome_cientifico);
+CREATE INDEX idx_arvores_geo ON arvores USING GIST(localizacao); -- Índice Espacial
