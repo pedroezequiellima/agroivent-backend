@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -15,7 +15,13 @@ import { InventarioModule } from './inventario/inventario.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot(databaseConfig),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        ...databaseConfig,
+        url: configService.getOrThrow<string>('DATABASE_URL'),
+      }),
+    }),
     AuthModule,
     PerfisModule,
     ProjetosModule,
