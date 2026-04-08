@@ -16,6 +16,9 @@ export class Arvore {
   @Column({ name: 'projeto_id', type: 'uuid' })
   projetoId: string;
 
+  @Column({ name: 'especie_id', type: 'int', nullable: true })
+  especieId?: number;
+
   @ManyToOne(() => Projeto, (projeto) => projeto.arvores, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'projeto_id' })
   projeto: Projeto;
@@ -37,6 +40,9 @@ export class Arvore {
 
   @Column({ name: 'qualidade_fuste', type: 'int', nullable: true })
   qualidadeFuste?: number;
+
+  @Column({ name: 'classe_diametrica', type: 'text', nullable: true })
+  classeDiametrica?: string;
 
   @Column({ name: 'coordenada_x', type: 'decimal', precision: 12, scale: 8, nullable: true })
   coordenadaX?: string;
