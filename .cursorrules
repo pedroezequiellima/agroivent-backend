@@ -1,0 +1,51 @@
+AgroIvent - Project Rules & Guidelines
+🛡️ 1. Segurança e Autenticação
+JWT & Auth: Todas as rotas (exceto auth/login e auth/register) devem ser protegidas pelo JwtAuthGuard.
+
+Gestão de Senhas: Nunca trafegar senhas em texto plano. Usar bcrypt com no mínimo 10 rounds de salt.
+
+Princípio do Menor Privilégio: Usuários só podem acessar/editar projetos que possuam o seu perfilId.
+
+Sanitização: Utilizar class-validator e class-transformer em todos os DTOs para evitar SQL Injection e poluição de parâmetros.
+
+Variáveis de Ambiente: Chaves de API, senhas de banco de dados e segredos do JWT devem residir estritamente no arquivo .env e nunca serem commitadas.
+
+💻 2. Padrões Técnicos (Backend - NestJS)
+TypeScript Estrito: * Proibido o uso de any, exceto em casos extremos de compatibilidade com bibliotecas externas (comentando o motivo).
+
+Uso obrigatório de interfaces ou tipos para retornos de funções.
+
+Clean Code (Código Limpo):
+
+Nomes Semânticos: Variáveis como dap, cap, g13 devem ser comentadas ou autoexplicativas no contexto florestal.
+
+Funções Pequenas: Cada função deve ter uma única responsabilidade (SRP).
+
+Arquitetura:
+
+Services: Toda a lógica de negócio deve residir nos Services.
+
+Controllers: Devem apenas orquestrar as requisições e respostas.
+
+DTOs: Uso obrigatório para entrada de dados.
+
+🌲 3. Motor de Cálculo (Python Interop)
+Rigor Dendrométrico: O motor Python deve sempre validar se as medidas de peito (1,30m) e base (0,30m) estão sendo tratadas de forma independente.
+
+Processamento Assíncrono: Para arquivos grandes, o NestJS deve gerenciar o processo como um ChildProcess ou via fila (BullMQ) para não travar a API.
+
+Validação de Outliers: O motor deve sinalizar árvores com medidas impossíveis (ex: DAP > 200cm em biomas que não comportam).
+
+Saída Estruturada: O Python deve sempre retornar um JSON válido para o stdout, facilitando o parsing no TypeScript.
+
+📊 4. Normas Florestais (CPRH/IBAMA)
+Estatística: O cálculo do erro amostral deve seguir a probabilidade de 90% (t de Student) com erro máximo aceitável de 20%.
+
+Inclusão (DMC): O Diâmetro Mínimo de Corte deve ser parametrizável via Frontend, respeitando o padrão legal da espécie ou bioma.
+
+Volume: O cálculo do volume deve permitir a configuração do Fator de Forma e Fator de Empilhamento.
+
+🚀 5. Git & Workflow
+Commits Semânticos: Usar o padrão Conventional Commits (ex: feat:, fix:, docs:, refactor:).
+
+Branching: main (produção), develop (desenvolvimento), e branches de feature/nome-da-funcionalidade.
