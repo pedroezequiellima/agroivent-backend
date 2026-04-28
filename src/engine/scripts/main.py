@@ -27,6 +27,7 @@ def main() -> None:
     args = parser.parse_args()
 
     database_url = os.getenv("DATABASE_URL")
+    
     if not database_url:
         raise RuntimeError("Variavel DATABASE_URL nao definida para processamento.")
 
